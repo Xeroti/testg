@@ -17,7 +17,6 @@ ENV NODE_ENV=production
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=web-build /app/web/.next ./.next
-COPY --from=web-build /app/web/public ./public
 COPY --from=web-build /app/web/next.config.js ./next.config.js
 EXPOSE 3000
 CMD ["npm", "start"]
@@ -43,7 +42,6 @@ RUN apk add --no-cache nginx
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=web-build /app/web/.next ./.next
-COPY --from=web-build /app/web/public ./public
 COPY --from=web-build /app/web/next.config.js ./next.config.js
 COPY --from=game-build /app/game/dist /usr/share/nginx/html/game
 COPY docker/nginx.conf /etc/nginx/nginx.conf

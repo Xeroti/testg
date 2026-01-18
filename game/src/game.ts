@@ -15,6 +15,8 @@ type Monster = {
   speed: number;
   hp: number;
   maxHp: number;
+  burnTime: number;
+  burnDps: number;
   xpValue: number;
   kind: "grunt" | "brute";
 };
@@ -25,6 +27,11 @@ type Bullet = {
   radius: number;
   damage: number;
   life: number;
+  mod: "none" | "piercing" | "burn" | "split" | "chain";
+  pierce: number;
+  chainRemaining: number;
+  burnTime: number;
+  burnDps: number;
 };
 
 type ExpOrb = {
@@ -33,16 +40,18 @@ type ExpOrb = {
   value: number;
 };
 
-type PowerupPickup = {
-  pos: Vec;
-  radius: number;
-};
-
-type PowerupChoice = {
+type LevelChoice = {
   id: "damage" | "attackSpeed" | "moveSpeed";
   label: string;
   value: number;
 };
+
+type ModifierChoice = {
+  id: "none" | "piercing" | "burn" | "split" | "chain";
+  label: string;
+};
+
+type Choice = LevelChoice | ModifierChoice;
 
 type Bonuses = {
   damage: number;
@@ -58,13 +67,14 @@ type GameState = {
   monsters: Monster[];
   bullets: Bullet[];
   orbs: ExpOrb[];
-  powerups: PowerupPickup[];
-  powerupChoices: PowerupChoice[];
+  choiceMode: "level" | "modifier" | null;
+  choices: Choice[];
   kills: number;
   level: number;
   xp: number;
   xpToLevel: number;
   bonuses: Bonuses;
+  bulletModifier: "none" | "piercing" | "burn" | "split" | "chain";
 };
 
 type Input = {
@@ -90,6 +100,18 @@ const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 const randRange = (min: number, max: number) =>
   min + Math.random() * (max - min);
 
+const rotate = (vec: Vec, radians: number) => ({
+  x: vec.x * Math.cos(radians) - vec.y * Math.sin(radians),
+  y: vec.x * Math.sin(radians) + vec.y * Math.cos(radians)
+});
+
+const modifierChoices: ModifierChoice[] = [
+  { id: "piercing", label: "Piercing rounds" },
+  { id: "burn", label: "Burning shots" },
+  { id: "split", label: "Split shot" },
+  { id: "chain", label: "Chain lightning" }
+];
+
 export const createGame = () => {
   const state: GameState = {
     width: 0,
@@ -105,8 +127,8 @@ export const createGame = () => {
     monsters: [],
     bullets: [],
     orbs: [],
-    powerups: [],
-    powerupChoices: [],
+    choiceMode: null,
+    choices: [],
     kills: 0,
     level: 1,
     xp: 0,
@@ -115,7 +137,8 @@ export const createGame = () => {
       damage: 0,
       attackSpeed: 0,
       moveSpeed: 0
-    }
+    },
+    bulletModifier: "none"
   };
 
   let monsterId = 0;
@@ -123,6 +146,7 @@ export const createGame = () => {
   let bruteTimer = 15;
   let fireTimer = 0;
   let hurtFlash = 0;
+  let swarmTriggered = false;
 
   const resize = (width: number, height: number) => {
     state.width = width;
@@ -137,15 +161,43 @@ export const createGame = () => {
       y: state.player.pos.y + Math.sin(angle) * distance
     };
     const isBrute = kind === "brute";
+    const timeScale = 1 + state.time * 0.008;
+    const levelScale = 1 + state.level * 0.06;
+    const difficulty = timeScale * levelScale;
     state.monsters.push({
       id: monsterId++,
       pos,
       radius: isBrute ? randRange(34, 44) : randRange(14, 22),
-      speed: isBrute ? randRange(45, 65) : randRange(70, 110),
-      hp: isBrute ? 140 + state.level * 18 : 16 + state.level * 2,
-      maxHp: isBrute ? 140 + state.level * 18 : 16 + state.level * 2,
+      speed: (isBrute ? randRange(45, 65) : randRange(70, 110)) * (1 + state.time * 0.0025),
+      hp: (isBrute ? 140 : 16) * difficulty + state.level * (isBrute ? 18 : 2),
+      maxHp: (isBrute ? 140 : 16) * difficulty + state.level * (isBrute ? 18 : 2),
+      burnTime: 0,
+      burnDps: 0,
       xpValue: isBrute ? 6 : 1,
       kind
+    });
+  };
+
+  const spawnBullet = (
+    origin: Vec,
+    direction: Vec,
+    mod: Bullet["mod"],
+    damage: number,
+    chainRemaining = 0
+  ) => {
+    const burnTime = mod === "burn" ? 2.4 : 0;
+    const burnDps = mod === "burn" ? 6 + state.level * 1.4 : 0;
+    state.bullets.push({
+      pos: { ...origin },
+      vel: { x: direction.x * 420, y: direction.y * 420 },
+      radius: 2.4,
+      damage,
+      life: 1.2,
+      mod,
+      pierce: mod === "piercing" ? 1 : 0,
+      chainRemaining,
+      burnTime,
+      burnDps
     });
   };
 
@@ -156,17 +208,65 @@ export const createGame = () => {
     });
     const baseDamage = 12 + state.level * 2;
     const damage = baseDamage * (1 + state.bonuses.damage);
-    state.bullets.push({
-      pos: { ...state.player.pos },
-      vel: { x: direction.x * 420, y: direction.y * 420 },
-      radius: 2.4,
-      damage,
-      life: 1.2
+    const mod = state.bulletModifier;
+
+    if (mod === "split") {
+      const spread = 0.28;
+      const splitDamage = damage * 0.7;
+      spawnBullet(state.player.pos, direction, mod, splitDamage);
+      spawnBullet(state.player.pos, rotate(direction, spread), mod, splitDamage);
+      spawnBullet(state.player.pos, rotate(direction, -spread), mod, splitDamage);
+      return;
+    }
+
+    if (mod === "chain") {
+      spawnBullet(state.player.pos, direction, mod, damage, 2);
+      return;
+    }
+
+    spawnBullet(state.player.pos, direction, mod, damage);
+  };
+
+  const setModifierChoices = () => {
+    const pool = [...modifierChoices];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    state.choices = pool.slice(0, 3);
+    state.choiceMode = "modifier";
+  };
+
+  const levelUp = () => {
+    state.level += 1;
+    state.xp = state.xp - state.xpToLevel;
+    state.xpToLevel = Math.floor(state.xpToLevel * 1.3 + 3);
+    state.player.maxHp += 6;
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + 8);
+    state.choices = [
+      { id: "damage", label: "More damage", value: 0.2 },
+      { id: "attackSpeed", label: "More attack speed", value: 0.18 },
+      { id: "moveSpeed", label: "More move speed", value: 0.16 }
+    ];
+    state.choiceMode = "level";
+  };
+
+  const handleMonsterDeath = (monster: Monster) => {
+    state.kills += 1;
+    state.orbs.push({
+      pos: { ...monster.pos },
+      radius: monster.kind === "brute" ? 10 : 6,
+      value: monster.xpValue
     });
+    if (monster.kind === "brute") {
+      if (!state.choiceMode) {
+        setModifierChoices();
+      }
+    }
   };
 
   const update = (dt: number, input: Input) => {
-    if (state.powerupChoices.length > 0) {
+    if (state.choiceMode) {
       return;
     }
 
@@ -183,7 +283,8 @@ export const createGame = () => {
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
       const waveBoost = Math.max(0.2, 1 - state.level * 0.05);
-      spawnTimer = randRange(0.35, 0.75) * waveBoost;
+      const timeBoost = Math.max(0.55, 1 - state.time * 0.006);
+      spawnTimer = randRange(0.35, 0.75) * waveBoost * timeBoost;
       spawnMonster("grunt");
     }
 
@@ -191,6 +292,13 @@ export const createGame = () => {
     if (bruteTimer <= 0) {
       bruteTimer = 15;
       spawnMonster("brute");
+    }
+
+    if (!swarmTriggered && state.time >= 30) {
+      swarmTriggered = true;
+      for (let i = 0; i < 28; i++) {
+        spawnMonster("grunt");
+      }
     }
 
     fireTimer -= dt;
@@ -238,27 +346,62 @@ export const createGame = () => {
     const aliveMonsters: Monster[] = [];
     for (const monster of state.monsters) {
       let alive = true;
+      if (monster.burnTime > 0) {
+        monster.burnTime = Math.max(0, monster.burnTime - dt);
+        monster.hp -= monster.burnDps * dt;
+        if (monster.hp <= 0) {
+          alive = false;
+          handleMonsterDeath(monster);
+        }
+      }
+      if (!alive) {
+        continue;
+      }
       for (const bullet of state.bullets) {
         if (bullet.life <= 0) {
           continue;
         }
         if (dist(monster.pos, bullet.pos) < monster.radius + bullet.radius) {
           monster.hp -= bullet.damage;
-          bullet.life = 0;
+          if (bullet.mod === "burn") {
+            monster.burnTime = Math.max(monster.burnTime, bullet.burnTime);
+            monster.burnDps = Math.max(monster.burnDps, bullet.burnDps);
+          }
+          if (bullet.mod === "chain" && bullet.chainRemaining > 0) {
+            let best: Monster | null = null;
+            let bestDist = 220;
+            for (const candidate of state.monsters) {
+              if (candidate === monster) {
+                continue;
+              }
+              const d = dist(monster.pos, candidate.pos);
+              if (d < bestDist) {
+                bestDist = d;
+                best = candidate;
+              }
+            }
+            if (best) {
+              const dir = normalize({
+                x: best.pos.x - monster.pos.x,
+                y: best.pos.y - monster.pos.y
+              });
+              spawnBullet(
+                monster.pos,
+                dir,
+                "chain",
+                bullet.damage * 0.7,
+                bullet.chainRemaining - 1
+              );
+            }
+          }
+          if (bullet.pierce > 0) {
+            bullet.pierce -= 1;
+          } else {
+            bullet.life = 0;
+          }
           if (monster.hp <= 0) {
             alive = false;
-            state.kills += 1;
-            state.orbs.push({
-              pos: { ...monster.pos },
-              radius: monster.kind === "brute" ? 10 : 6,
-              value: monster.xpValue
-            });
-            if (monster.kind === "brute") {
-              state.powerups.push({
-                pos: { ...monster.pos },
-                radius: 12
-              });
-            }
+            handleMonsterDeath(monster);
           }
           break;
         }
@@ -278,11 +421,7 @@ export const createGame = () => {
       if (distance <= pickupRange) {
         state.xp += orb.value;
         if (state.xp >= state.xpToLevel) {
-          state.level += 1;
-          state.xp = state.xp - state.xpToLevel;
-          state.xpToLevel = Math.floor(state.xpToLevel * 1.3 + 3);
-          state.player.maxHp += 6;
-          state.player.hp = Math.min(state.player.maxHp, state.player.hp + 8);
+          levelUp();
         }
       } else {
         if (distance < magnetRadius) {
@@ -300,20 +439,6 @@ export const createGame = () => {
     }
     state.orbs = remainingOrbs;
 
-    const remainingPowerups: PowerupPickup[] = [];
-    for (const pickup of state.powerups) {
-      const pickupRange = state.player.radius + pickup.radius + 10;
-      if (dist(pickup.pos, state.player.pos) <= pickupRange) {
-        state.powerupChoices = [
-          { id: "damage", label: "More damage", value: 0.2 },
-          { id: "attackSpeed", label: "More attack speed", value: 0.18 },
-          { id: "moveSpeed", label: "More move speed", value: 0.16 }
-        ];
-      } else {
-        remainingPowerups.push(pickup);
-      }
-    }
-    state.powerups = remainingPowerups;
   };
 
   const drawGrid = (ctx: CanvasRenderingContext2D, offset: Vec) => {
@@ -359,19 +484,6 @@ export const createGame = () => {
       ctx.beginPath();
       ctx.arc(screen.x, screen.y, orb.radius, 0, Math.PI * 2);
       ctx.fill();
-    }
-
-    for (const pickup of state.powerups) {
-      const screen = worldToScreen(pickup.pos);
-      ctx.strokeStyle = "rgba(170, 120, 255, 0.9)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(screen.x, screen.y - pickup.radius);
-      ctx.lineTo(screen.x + pickup.radius, screen.y);
-      ctx.lineTo(screen.x, screen.y + pickup.radius);
-      ctx.lineTo(screen.x - pickup.radius, screen.y);
-      ctx.closePath();
-      ctx.stroke();
     }
 
     for (const bullet of state.bullets) {
@@ -430,20 +542,27 @@ export const createGame = () => {
     update,
     render,
     choosePowerup: (index: number) => {
-      const choice = state.powerupChoices[index];
+      const choice = state.choices[index];
       if (!choice) {
         return;
       }
-      if (choice.id === "damage") {
-        state.bonuses.damage += choice.value;
+      if (state.choiceMode === "level") {
+        const levelChoice = choice as LevelChoice;
+        if (levelChoice.id === "damage") {
+          state.bonuses.damage += levelChoice.value;
+        }
+        if (levelChoice.id === "attackSpeed") {
+          state.bonuses.attackSpeed += levelChoice.value;
+        }
+        if (levelChoice.id === "moveSpeed") {
+          state.bonuses.moveSpeed += levelChoice.value;
+        }
+      } else if (state.choiceMode === "modifier") {
+        const modChoice = choice as ModifierChoice;
+        state.bulletModifier = modChoice.id;
       }
-      if (choice.id === "attackSpeed") {
-        state.bonuses.attackSpeed += choice.value;
-      }
-      if (choice.id === "moveSpeed") {
-        state.bonuses.moveSpeed += choice.value;
-      }
-      state.powerupChoices = [];
+      state.choices = [];
+      state.choiceMode = null;
     }
   };
 };

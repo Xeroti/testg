@@ -10,8 +10,10 @@ if (!ctx) {
 const hpEl = document.getElementById("hp");
 const killsEl = document.getElementById("kills");
 const levelEl = document.getElementById("level");
+const modifierEl = document.getElementById("modifier");
 const xpFillEl = document.getElementById("xp-fill");
 const powerupOverlay = document.getElementById("powerup-overlay");
+const powerupTitle = document.getElementById("powerup-title");
 const powerupButtons = Array.from(
   document.querySelectorAll<HTMLButtonElement>(".powerup-option")
 );
@@ -144,15 +146,34 @@ const loop = (now: number) => {
   if (levelEl) {
     levelEl.textContent = `${game.state.level}`;
   }
+  if (modifierEl) {
+    const label =
+      game.state.bulletModifier === "none"
+        ? "None"
+        : game.state.bulletModifier === "piercing"
+        ? "Piercing"
+        : game.state.bulletModifier === "burn"
+        ? "Burn"
+        : game.state.bulletModifier === "split"
+        ? "Split"
+        : "Chain";
+    modifierEl.textContent = label;
+  }
   if (xpFillEl) {
     const ratio = Math.min(1, game.state.xp / game.state.xpToLevel);
     xpFillEl.style.width = `${ratio * 100}%`;
   }
   if (powerupOverlay) {
-    const hasChoices = game.state.powerupChoices.length > 0;
+    const hasChoices = game.state.choiceMode !== null;
     powerupOverlay.classList.toggle("visible", hasChoices);
     if (hasChoices) {
-      game.state.powerupChoices.forEach((choice, index) => {
+      if (powerupTitle) {
+        powerupTitle.textContent =
+          game.state.choiceMode === "modifier"
+            ? "Choose a modifier"
+            : "Choose an upgrade";
+      }
+      game.state.choices.forEach((choice, index) => {
         const button = powerupButtons[index];
         if (button) {
           button.textContent = choice.label;

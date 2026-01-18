@@ -10,6 +10,8 @@ if (!ctx) {
 const hpEl = document.getElementById("hp");
 const killsEl = document.getElementById("kills");
 const levelEl = document.getElementById("level");
+const joystickEl = document.getElementById("joystick");
+const joystickStick = document.getElementById("joystick-stick");
 
 const game = createGame();
 
@@ -20,6 +22,73 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => {
   keys.delete(event.key.toLowerCase());
 });
+
+const touch = {
+  x: 0,
+  y: 0,
+  active: false,
+  pointerId: -1
+};
+
+const updateJoystick = (dx: number, dy: number, radius: number) => {
+  const dist = Math.hypot(dx, dy);
+  const clamped = dist > radius ? radius / dist : 1;
+  const nx = dx * clamped;
+  const ny = dy * clamped;
+  touch.x = radius ? nx / radius : 0;
+  touch.y = radius ? ny / radius : 0;
+  if (joystickStick) {
+    joystickStick.style.transform = `translate(${nx}px, ${ny}px)`;
+  }
+};
+
+const resetJoystick = () => {
+  touch.x = 0;
+  touch.y = 0;
+  touch.active = false;
+  touch.pointerId = -1;
+  if (joystickStick) {
+    joystickStick.style.transform = "translate(0, 0)";
+  }
+};
+
+if (joystickEl) {
+  const getCenter = () => {
+    const rect = joystickEl.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+      radius: rect.width * 0.5 - 8
+    };
+  };
+
+  joystickEl.addEventListener("pointerdown", (event) => {
+    joystickEl.setPointerCapture(event.pointerId);
+    touch.active = true;
+    touch.pointerId = event.pointerId;
+    const center = getCenter();
+    updateJoystick(event.clientX - center.x, event.clientY - center.y, center.radius);
+  });
+
+  joystickEl.addEventListener("pointermove", (event) => {
+    if (!touch.active || event.pointerId !== touch.pointerId) {
+      return;
+    }
+    const center = getCenter();
+    updateJoystick(event.clientX - center.x, event.clientY - center.y, center.radius);
+  });
+
+  const endPointer = (event: PointerEvent) => {
+    if (event.pointerId !== touch.pointerId) {
+      return;
+    }
+    resetJoystick();
+  };
+
+  joystickEl.addEventListener("pointerup", endPointer);
+  joystickEl.addEventListener("pointercancel", endPointer);
+  joystickEl.addEventListener("lostpointercapture", resetJoystick);
+}
 
 const resize = () => {
   const dpr = window.devicePixelRatio || 1;
@@ -42,10 +111,12 @@ const loop = (now: number) => {
   const input = {
     x:
       (keys.has("d") || keys.has("arrowright") ? 1 : 0) -
-      (keys.has("a") || keys.has("arrowleft") ? 1 : 0),
+      (keys.has("a") || keys.has("arrowleft") ? 1 : 0) +
+      touch.x,
     y:
       (keys.has("s") || keys.has("arrowdown") ? 1 : 0) -
-      (keys.has("w") || keys.has("arrowup") ? 1 : 0)
+      (keys.has("w") || keys.has("arrowup") ? 1 : 0) +
+      touch.y
   };
 
   game.update(dt, input);

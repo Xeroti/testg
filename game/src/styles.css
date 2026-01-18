@@ -26,6 +26,7 @@ body {
   height: 100%;
   display: block;
   image-rendering: pixelated;
+  touch-action: none;
 }
 
 #hud {
@@ -55,4 +56,49 @@ body {
   left: 16px;
   font-size: 13px;
   opacity: 0.7;
+}
+
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+#joystick {
+  position: absolute;
+  left: 20px;
+  bottom: 24px;
+  width: 130px;
+  height: 130px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#joystick-base {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+#joystick-stick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  margin-left: -29px;
+  margin-top: -29px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transform: translate(0, 0);
+}
+
+@media (pointer: fine) {
+  #touch-controls {
+    display: none;
+  }
 }

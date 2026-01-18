@@ -18,7 +18,7 @@ COPY web/package.json web/package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=web-build /app/web/.next ./.next
 COPY --from=web-build /app/web/next.config.js ./next.config.js
-EXPOSE 3000
+EXPOSE 8080
 CMD ["npm", "start"]
 
 FROM base AS game-deps
@@ -37,7 +37,7 @@ EXPOSE 80
 FROM node:20-alpine AS combined
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 RUN apk add --no-cache nginx
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --omit=dev

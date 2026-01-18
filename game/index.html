@@ -6,13 +6,16 @@
     <title>Survivors Loop</title>
   </head>
   <body>
+    <div id="xp-bar">
+      <div id="xp-fill"></div>
+    </div>
     <div id="hud">
       <div class="hud-row">
         <strong>HP</strong>
         <span id="hp">100</span>
       </div>
       <div class="hud-row">
-        <strong>Kills</strong>
+        <strong>Monsters</strong>
         <span id="kills">0</span>
       </div>
       <div class="hud-row">
@@ -21,6 +24,16 @@
       </div>
     </div>
     <canvas id="game"></canvas>
+    <div id="powerup-overlay">
+      <div id="powerup-panel">
+        <div class="powerup-title">Choose a powerup</div>
+        <div class="powerup-options">
+          <button class="powerup-option" type="button"></button>
+          <button class="powerup-option" type="button"></button>
+          <button class="powerup-option" type="button"></button>
+        </div>
+      </div>
+    </div>
     <div id="touch-controls">
       <div id="joystick">
         <div id="joystick-base"></div>
@@ -28,7 +41,7 @@
       </div>
     </div>
     <div id="tips">
-      Move with WASD, arrows, or the touch stick. Auto-attack is on.
+      Move with WASD, arrows, or the touch stick. Laser auto-attack is on.
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -10,6 +10,11 @@ if (!ctx) {
 const hpEl = document.getElementById("hp");
 const killsEl = document.getElementById("kills");
 const levelEl = document.getElementById("level");
+const xpFillEl = document.getElementById("xp-fill");
+const powerupOverlay = document.getElementById("powerup-overlay");
+const powerupButtons = Array.from(
+  document.querySelectorAll<HTMLButtonElement>(".powerup-option")
+);
 const joystickEl = document.getElementById("joystick");
 const joystickStick = document.getElementById("joystick-stick");
 
@@ -90,6 +95,14 @@ if (joystickEl) {
   joystickEl.addEventListener("lostpointercapture", resetJoystick);
 }
 
+if (powerupButtons.length > 0) {
+  powerupButtons.forEach((button, index) => {
+    button.addEventListener("click", () => {
+      game.choosePowerup(index);
+    });
+  });
+}
+
 const resize = () => {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.floor(window.innerWidth * dpr);
@@ -130,6 +143,22 @@ const loop = (now: number) => {
   }
   if (levelEl) {
     levelEl.textContent = `${game.state.level}`;
+  }
+  if (xpFillEl) {
+    const ratio = Math.min(1, game.state.xp / game.state.xpToLevel);
+    xpFillEl.style.width = `${ratio * 100}%`;
+  }
+  if (powerupOverlay) {
+    const hasChoices = game.state.powerupChoices.length > 0;
+    powerupOverlay.classList.toggle("visible", hasChoices);
+    if (hasChoices) {
+      game.state.powerupChoices.forEach((choice, index) => {
+        const button = powerupButtons[index];
+        if (button) {
+          button.textContent = choice.label;
+        }
+      });
+    }
   }
 
   requestAnimationFrame(loop);

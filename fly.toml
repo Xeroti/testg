@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for testg-8m8fiq on 2026-01-18T20:52:19Z
+# fly.toml app configuration file generated for testg-gkrbzq on 2026-01-20T21:15:27Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'testg-8m8fiq'
-primary_region = 'fra'
+app = 'testg-gkrbzq'
+primary_region = 'ams'
 
 [build]
 
@@ -20,4 +20,4 @@ primary_region = 'fra'
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 256
